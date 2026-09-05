@@ -1,116 +1,137 @@
-
 using UnityEngine;
 using UnityEngine.InputSystem;
 
+[RequireComponent(typeof(Rigidbody))]
+[RequireComponent(typeof(CapsuleCollider))]
 public class PlayerMovement : MonoBehaviour
 {
-    [Header("Viteza")]
-    public float walkSpeed = 2f;
-    public float runSpeed = 5f;
-    public float crouchSpeed = 1f;
-    
-    [Header("Raycast")]
-    public float rayDistance = 0.5f;
-    
-    [Header("Salt")]
-    public float jumpForce = 5f;
-    
-    private Rigidbody rb;
-    private bool isGrounded = true;
-    private bool isCrouching = false;
+    [Header("Movement")]
+    public float walkSpeed = 4f;
+    public float runSpeed = 7f;
 
-    void Start()
+    [Header("Jump")]
+    public float jumpForce = 5f;
+
+    [Header("Ground")]
+    public LayerMask groundLayer;
+    public float groundDistance = 0.2f;
+
+    [Header("Player")]
+    public float normalHeight = 2f;
+
+    private Rigidbody rb;
+    private CapsuleCollider capsule;
+
+    private bool grounded;
+    private Vector2 input;
+
+    private void Awake()
     {
         rb = GetComponent<Rigidbody>();
+        capsule = GetComponent<CapsuleCollider>();
+
+        rb.freezeRotation = true;
+
+        capsule.height = normalHeight;
     }
 
-    void Update()
+    private void Update()
     {
-        HandleMovement();
-        HandleJump();
+        GetInput();
+        CheckGround();
     }
 
-    void HandleMovement()
+    private void FixedUpdate()
     {
-        // Citeste input direct din tastatura cu Input System
-        bool forwardPressed = Keyboard.current.wKey.isPressed;
-        bool backPressed = Keyboard.current.sKey.isPressed;
-        bool leftPressed = Keyboard.current.aKey.isPressed;
-        bool rightPressed = Keyboard.current.dKey.isPressed;
-        bool runPressed = Keyboard.current.leftShiftKey.isPressed;
-        bool crouchPressed = Keyboard.current.cKey.isPressed;
+        Move();
+    }
 
-        // Determina viteza
-        float currentSpeed = walkSpeed;
-        if (crouchPressed)
-        {
-            currentSpeed = crouchSpeed;
-            isCrouching = true;
-        }
-        else if (runPressed && (forwardPressed || backPressed))
-        {
-            currentSpeed = runSpeed;
-            isCrouching = false;
-        }
-        else
-        {
-            isCrouching = false;
-        }
+    private void GetInput()
+    {
+        input = Vector2.zero;
 
-        // === INAINTE ===
-        if (forwardPressed)
-        {
-            if (!IsPathBlocked(transform.forward))
-                transform.Translate(Vector3.forward * currentSpeed * Time.deltaTime);
-        }
+        if (Keyboard.current == null)
+            return;
 
-        // === INAPOI ===
-        if (backPressed)
-        {
-            if (!IsPathBlocked(-transform.forward))
-                transform.Translate(Vector3.back * currentSpeed * Time.deltaTime);
-        }
+        if (Keyboard.current.wKey.isPressed)
+            input.y += 1;
 
-        // === DREAPTA ===
-        if (rightPressed)
-        {
-            if (!IsPathBlocked(transform.right))
-                transform.Translate(Vector3.right * currentSpeed * Time.deltaTime);
-        }
+        if (Keyboard.current.sKey.isPressed)
+            input.y -= 1;
 
-        // === STANGA ===
-        if (leftPressed)
+        if (Keyboard.current.aKey.isPressed)
+            input.x -= 1;
+
+        if (Keyboard.current.dKey.isPressed)
+            input.x += 1;
+
+        input = Vector2.ClampMagnitude(input, 1f);
+
+        // Jump
+        if (Keyboard.current.spaceKey.wasPressedThisFrame)
         {
-            if (!IsPathBlocked(-transform.right))
-                transform.Translate(Vector3.left * currentSpeed * Time.deltaTime);
+            Jump();
         }
     }
 
-    void HandleJump()
+    private void Move()
     {
-        // wasPressedThisFrame pentru detectare apasare
-        if (Keyboard.current.spaceKey.wasPressedThisFrame && isGrounded && !isCrouching)
+        float speed = walkSpeed;
+
+        // Run
+        if (Keyboard.current != null &&
+            Keyboard.current.leftShiftKey.isPressed &&
+            input.y > 0)
         {
-            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
-            isGrounded = false;
+            speed = runSpeed;
         }
+
+        Vector3 direction =
+            transform.forward * input.y +
+            transform.right * input.x;
+
+        direction.Normalize();
+
+        Vector3 velocity = rb.linearVelocity;
+
+        velocity.x = direction.x * speed;
+        velocity.z = direction.z * speed;
+
+        rb.linearVelocity = velocity;
     }
 
-    void OnCollisionEnter(Collision collision)
+    private void Jump()
     {
-        if (collision.gameObject.CompareTag("Ground"))
-            isGrounded = true;
+        if (!grounded)
+            return;
+
+        Vector3 velocity = rb.linearVelocity;
+
+        velocity.y = 0f;
+
+        rb.linearVelocity = velocity;
+
+        rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
     }
 
-    // ===== RAYCAST CHECK =====
-    bool IsPathBlocked(Vector3 direction)
+    private void CheckGround()
     {
-        if (direction.magnitude < 0.1f) return false;
+        Vector3 start = capsule.bounds.center;
 
-        return Physics.Raycast(
-            transform.position + Vector3.up * 0.5f,
-            direction.normalized,
-            rayDistance
+        float distance =
+            capsule.bounds.extents.y + groundDistance;
+
+        grounded = Physics.Raycast(
+            start,
+            Vector3.down,
+            distance,
+            groundLayer
+        );
+
+        Debug.DrawRay(
+            start,
+            Vector3.down * distance,
+            grounded ? Color.green : Color.red
         );
     }
 }
