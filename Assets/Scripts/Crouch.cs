@@ -7,11 +7,14 @@ public class Crouch : MonoBehaviour
 
     public float standHeight = 1.8f;
     public float crouchHeight = 1.0f;
+
+    // IMPORTANT: acestea sunt poziții LOCALE ale camerei
     public float standCameraY = 1.6f;
-    public float crouchCameraY = 0.9f;
+    public float crouchCameraY = 1.25f;
+
     public float transitionSpeed = 8f;
 
-    private bool isCrouching = false;
+    private bool isCrouching;
     private float targetHeight;
     private float targetCameraY;
 
@@ -19,28 +22,50 @@ public class Crouch : MonoBehaviour
     {
         targetHeight = standHeight;
         targetCameraY = standCameraY;
+
+        // Asigurăm poziția inițială
+        Vector3 camPos = cameraHolder.localPosition;
+        camPos.y = standCameraY;
+        cameraHolder.localPosition = camPos;
+
+        playerCollider.height = standHeight;
     }
 
     void Update()
     {
+        // Crouch
         if (Input.GetKeyDown(KeyCode.C))
         {
             isCrouching = !isCrouching;
-            targetHeight = isCrouching ? crouchHeight : standHeight;
-            targetCameraY = isCrouching ? crouchCameraY : standCameraY;
+
+            if (isCrouching)
+            {
+                targetHeight = crouchHeight;
+                targetCameraY = crouchCameraY;
+            }
+            else
+            {
+                targetHeight = standHeight;
+                targetCameraY = standCameraY;
+            }
         }
 
-  
-        float newHeight = Mathf.Lerp(playerCollider.height, targetHeight, transitionSpeed * Time.deltaTime);
-        playerCollider.height = newHeight;
+        // Schimbăm înălțimea colliderului
+        playerCollider.height = Mathf.Lerp(
+            playerCollider.height,
+            targetHeight,
+            transitionSpeed * Time.deltaTime
+        );
 
-    
-        Vector3 newCenter = playerCollider.center;
-        newCenter.y = newHeight / 2f;
-        playerCollider.center = newCenter;
+        // Schimbăm poziția camerei
+        Vector3 cameraPosition = cameraHolder.localPosition;
 
-        Vector3 camPos = cameraHolder.localPosition;
-        camPos.y = Mathf.Lerp(camPos.y, targetCameraY, transitionSpeed * Time.deltaTime);
-        cameraHolder.localPosition = camPos;
+        cameraPosition.y = Mathf.Lerp(
+            cameraPosition.y,
+            targetCameraY,
+            transitionSpeed * Time.deltaTime
+        );
+
+        cameraHolder.localPosition = cameraPosition;
     }
 }
